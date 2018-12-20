@@ -41,3 +41,7 @@ build/*
 cmake-build-debug
 
 .vscode
+
+docker-compose-local-cpp.yaml
+data/
+*shell/

@@ -12,6 +12,10 @@
 
 #include <string>
 
+#define MULTI_INDEX(table) \
+ using table##s = eosio::multi_index<#table "s"##_n, table##_ts>;
+
+
 constexpr uint64_t DELAY_SEC = 7 *24 * 60 *60;
 
 namespace eosio {
@@ -44,6 +48,9 @@ namespace eosio {
 
          [[eosio::action]]
          void setlargeast( asset large_asset );
+
+         [[eosio::action]]
+         void setdelay( symbol_code sym_code, uint64_t delaysec );
 
          [[eosio::action]]
          void lockall( symbol_code sym_code );
@@ -114,6 +121,10 @@ namespace eosio {
          [[eosio::action]]
          void rmwithdraw( uint64_t           id,
                           symbol_code        sym_code);
+         
+         [[eosio::action]]
+         void rmwithdraws( uint64_t          n,
+                          symbol_code        sym_code);
 
          [[eosio::action]]
          void open( name owner, const symbol& symbol, name ram_payer );
@@ -155,9 +166,13 @@ namespace eosio {
             time_point_sec assign_time;
             uint64_t       state;
 
+            time_point_sec create_time;
+
             uint64_t primary_key()const { return owner.value; }
             uint64_t by_address()const { return hash64( address ); }
             uint64_t by_state()const { return state; }
+
+            recharge_address_ts():create_time(time_point_sec()){}
          };
 
          struct [[eosio::table]] issue_ts {
@@ -186,6 +201,19 @@ namespace eosio {
             uint64_t by_state()const { return state; }
             withdraw_ts():create_time(time_point_sec()),feedback_time(time_point_sec()){};
 
+            uint128_t by_state_and_feedback_time() const 
+            {
+               uint128_t index = 0;
+               index |= feedback_time.utc_seconds;
+               index <<= 64;
+               uint64_t mask = (state == 5 || state == 2) ? 0 : 1;
+               mask <<= 63;
+               // amount should always be positive
+               uint64_t amount = 0x7fffffffffffffff;
+               amount += quantity.amount;
+               index |= amount;
+               return index;
+            }
          };
 
          struct [[eosio::table]] account {
@@ -210,10 +238,26 @@ namespace eosio {
             bool     active;
             uint64_t issue_seq_num;
 
+            uint32_t delay_sec; 
+
             uint64_t primary_key()const { return supply.symbol.code().raw(); }
+
+            currency_stats():delay_sec(DELAY_SEC){}
          };
 
-         typedef eosio::multi_index< "applicants"_n, applicant_ts > applicants;
+         struct [[eosio::table]] deposit_ts {
+            uint64_t             id;
+            transaction_id_type  trx_id;
+            name                 from;
+            string               to;
+            asset                quantity;
+            time_point_sec       create_time;
+
+            uint64_t primary_key() const { return id; }
+         };
+
+         MULTI_INDEX(applicant)
+         // typedef eosio::multi_index< "applicants"_n, applicant_ts > applicants;
          typedef eosio::multi_index< "symbols"_n, symbol_ts > symbols;
          typedef eosio::multi_index< "issues"_n, issue_ts > issues;
          typedef eosio::multi_index< "rchrgaddr"_n, recharge_address_ts ,
@@ -222,10 +266,12 @@ namespace eosio {
          > addresses;
          typedef eosio::multi_index< "withdraws"_n, withdraw_ts,
                indexed_by<"trxid"_n, const_mem_fun<withdraw_ts, fixed_bytes<32>, &withdraw_ts::by_trxid>  >,
-               indexed_by<"state"_n, const_mem_fun<withdraw_ts, uint64_t, &withdraw_ts::by_state>  >
+               indexed_by<"state"_n, const_mem_fun<withdraw_ts, uint64_t, &withdraw_ts::by_state>  >,
+               indexed_by<"delindex"_n, const_mem_fun<withdraw_ts, uint128_t, &withdraw_ts::by_state_and_feedback_time>  >
          > withdraws;
          typedef eosio::multi_index< "accounts"_n, account > accounts;
          typedef eosio::multi_index< "stat"_n, currency_stats > stats;
+         typedef eosio::multi_index< "deposit"_n, deposit_ts > deposits;
 
          void sub_balance( name owner, asset value );
          void add_balance( name owner, asset value, name ram_payer );
@@ -235,6 +281,7 @@ namespace eosio {
          void issue_handle( symbol_code sym_code, uint64_t issue_seq_num, bool pass);
          static uint64_t hash64( string str );
 
+         uint32_t get_delay_sec(symbol_code sym_code) const;
    };
 
 } /// namespace eosio
