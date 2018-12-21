@@ -104,12 +104,13 @@ void pegtoken::create(name issuer, symbol sym)
         p.supply = asset(0, sym);
         p.max_limit = p.supply;
         p.min_limit = p.supply;
-        p.min_fee = p.supply;
+        p.min_service_fee = p.supply;
+        p.miner_fee = p.supply;
         p.total_limit = p.supply;
         p.frequency_limit = 0;
         p.interval_limit = 300;
         p.delayday = 7;
-        p.fee_rate = 0;
+        p.service_fee_rate = 0;
         p.issuer = issuer;
         p.acceptor = issuer;
         p.active = false;
@@ -184,15 +185,17 @@ void pegtoken::setauditor(symbol_code sym_code, name auditor, string action)
     }
 }
 
-void pegtoken::setfee(double fee_rate, asset min_fee)
+void pegtoken::setfee(double service_fee_rate, asset min_service_fee, asset miner_fee)
 {
-    eosio_assert(fee_rate >= 0 && fee_rate < 1 && min_fee.amount >= 0, "invalid fee_rate");
+    eosio_assert(service_fee_rate >= 0 && service_fee_rate < 1 && min_service_fee.amount >= 0 && miner_fee.amount >= 0, "invalid service_fee_rate or min_service_fee or miner_fee");
+    eosio_assert(min_service_fee.symbol == miner_fee.symbol, "min_service_fee and miner_fee are not the same symbol");
 
-    NEED_ISSUER_AUTH(min_fee.symbol.code().raw())
+    NEED_ISSUER_AUTH(min_service_fee.symbol.code().raw())
 
     stats_table.modify(iter, same_payer, [&](auto& p) {
-        p.fee_rate = fee_rate;
-        p.min_fee = min_fee;
+        p.service_fee_rate = service_fee_rate;
+        p.min_service_fee = min_service_fee;
+        p.miner_fee = miner_fee;
     });
 }
 

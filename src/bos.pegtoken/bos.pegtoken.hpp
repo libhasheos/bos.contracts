@@ -35,7 +35,7 @@ public:
 
     [[eosio::action]] void setauditor(symbol_code sym_code, name auditor, string action);
 
-    [[eosio::action]] void setfee(double fee_rate, asset min_fee);
+    [[eosio::action]] void setfee(double service_fee_rate, asset min_service_fee, asset miner_fee);
 
     [[eosio::action]] void issue(name to, asset quantity, string memo);
 
