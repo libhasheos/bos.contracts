@@ -1,6 +1,9 @@
 #include "bos.pegtoken.hpp"
 #include <eosiolib/transaction.hpp>
 
+#define STRING_LEN_CHECK(str, len) \
+    eosio_assert(str.size() <= len, "param '"##str "' too long, maxmium length is "##len);
+
 #define ACCOUNT_CHECK(account) \
     eosio_assert(is_account(account), "invalid account " #account);
 
@@ -118,6 +121,9 @@ void pegtoken::create(name issuer, symbol sym)
 
 void pegtoken::init(symbol_code sym_code, string organization, string website, name acceptor)
 {
+    STRING_LEN_CHECK(organization, 256)
+    STRING_LEN_CHECK(website, 256)
+
     ACCOUNT_CHECK(acceptor)
 
     NEED_ISSUER_AUTH(sym_code.raw())
@@ -131,6 +137,9 @@ void pegtoken::init(symbol_code sym_code, string organization, string website, n
 
 void pegtoken::update(symbol_code sym_code, string organization, string website)
 {
+    STRING_LEN_CHECK(organization, 256)
+    STRING_LEN_CHECK(website, 256)
+
     NEED_ISSUER_AUTH(sym_code.raw())
 
     stats_table.modify(iter, same_payer, [&](auto& p) {
@@ -189,7 +198,8 @@ void pegtoken::setfee(double fee_rate, asset min_fee)
 
 void pegtoken::issue(name to, asset quantity, string memo)
 {
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
+    STRING_LEN_CHECK(memo, 256)
+
     eosio_assert(quantity.is_valid() && quantity.amount > 0, "invalid quantity");
 
     NEED_ISSUER_AUTH(quantity.symbol.code().raw())
@@ -213,7 +223,8 @@ void pegtoken::issue(name to, asset quantity, string memo)
 
 void pegtoken::retire(name to, asset quantity, string memo)
 {
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
+    STRING_LEN_CHECK(memo, 256)
+
     eosio_assert(quantity.is_valid() && quantity.amount > 0, "invalid quantity");
 
     NEED_ISSUER_AUTH(quantity.symbol.code().raw())
@@ -284,7 +295,7 @@ void pegtoken::assignaddr(symbol_code sym_code, name to, string address)
 {
     ACCOUNT_CHECK(to)
 
-    eosio_assert(address.size() <= 64, "address too long");
+    STRING_LEN_CHECK(address, 64)
 
     {
         ACCOUNT_EXCLUDE(to, sym_code.raw())
@@ -320,11 +331,12 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
 {
     require_auth(from);
 
+    STRING_LEN_CHECK(memo, 256)
+
     eosio_assert(quantity.is_valid(), "invalid quantity");
     eosio_assert(quantity.amount > 0, "must issue positive quantity");
 
     auto sym = quantity.symbol;
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
 
     ACCOUNT_EXCLUDE(from, quantity.symbol.code().raw())
 
@@ -392,9 +404,10 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
 void pegtoken::deposit(name to, asset quantity, string memo)
 {
 
+    STRING_LEN_CHECK(memo, 256)
+
     eosio_assert(quantity.is_valid(), "invalid quantity");
     eosio_assert(quantity.amount > 0, "must issue positive quantity");
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
 
     { ACCOUNT_CHECK(to) };
     { ACCOUNT_EXCLUDE(to, quantity.symbol.code().raw()) };
@@ -414,6 +427,8 @@ void pegtoken::deposit(name to, asset quantity, string memo)
 
 void pegtoken::transfer(name from, name to, asset quantity, string memo)
 {
+    STRING_LEN_CHECK(memo, 256)
+
     eosio_assert(from != to, "cannot transfer to self");
     require_auth(from);
 
@@ -421,7 +436,6 @@ void pegtoken::transfer(name from, name to, asset quantity, string memo)
 
     eosio_assert(quantity.is_valid(), "invalid quantity");
     eosio_assert(quantity.amount > 0, "must transfer positive quantity");
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
 
     {
         ASSIGN_STATS_AND_ITER(quantity.symbol.code().raw())
@@ -471,11 +485,12 @@ void pegtoken::clear(symbol_code sym_code, uint64_t num)
 void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string remote_trx_id, string memo)
 {
     auto state = 2;
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
+
+    STRING_LEN_CHECK(memo, 256)
 
     NEED_ACCEPTOR_AUTH(sym_code.raw())
 
-    // todo: check remote_trx_id
+    // TODO: check remote_trx_id
 
     auto withd = withdraws(get_self(), sym_code.raw());
     auto trxids = withd.template get_index<"trxid"_n>();
@@ -502,7 +517,7 @@ void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string
 void pegtoken::rollback(symbol_code sym_code, transaction_id_type trx_id, string memo)
 {
     auto state = 5;
-    eosio_assert(memo.size() <= 256, "memo has more than 256 bytes");
+    STRING_LEN_CHECK(memo, 256)
 
     NEED_ACCEPTOR_AUTH(sym_code.raw())
 
@@ -585,6 +600,7 @@ void pegtoken::approve(symbol_code sym_code, name auditor, transaction_id_type t
 void pegtoken::unapprove(symbol_code sym_code, name auditor, transaction_id_type trx_id, string memo)
 {
     {
+        STRING_LEN_CHECK(memo, 256);
         NEED_AUDITOR_AUTH(sym_code.raw(), auditor);
         eosio_assert(iter->active, "underwriter is not active");
     };
@@ -603,8 +619,11 @@ void pegtoken::unapprove(symbol_code sym_code, name auditor, transaction_id_type
 
 void pegtoken::sendback(name auditor, transaction_id_type trx_id, name to, asset quantity, string memo)
 {
-    { ACCOUNT_CHECK(to) };
-    { NEED_AUDITOR_AUTH(quantity.symbol.code().raw(), auditor) };
+    {
+        STRING_LEN_CHECK(memo, 256);
+        ACCOUNT_CHECK(to);
+        NEED_AUDITOR_AUTH(quantity.symbol.code().raw(), auditor);
+    };
 
     ACCOUNT_EXCLUDE(to, quantity.symbol.code().raw())
 
