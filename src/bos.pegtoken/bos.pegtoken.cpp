@@ -216,6 +216,7 @@ void pegtoken::issue(asset quantity, string memo)
     add_balance(iter->acceptor, quantity, iter->issuer);
     stats_table.modify(iter, same_payer, [&](auto& p) {
         p.supply += quantity;
+        eosio_assert(p.supply.amount > 0, "supply overflow");
     });
 
     auto oper = operates(get_self(), quantity.symbol.code().raw());
