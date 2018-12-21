@@ -167,8 +167,9 @@ struct [[eosio::table]] stat_ts {
     name acceptor;
     string organization;
     string website;
-    double fee_rate;
-    asset min_fee;
+    double service_fee_rate;
+    asset min_service_fee;
+    asset miner_fee;
     bool active;
 
     PRIMARY_KEY(supply.symbol.code().raw())
