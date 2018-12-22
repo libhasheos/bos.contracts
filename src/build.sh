@@ -3,7 +3,8 @@
 cd /bos-mnt/bos.pegtoken
 
 rm ./bos.pegtoken.abi
-eosio-abigen -contract=bos.pegtoken -output=./bos.pegtoken.abi   ./bos.pegtoken.cpp 
+eosio-abigen bos.pegtoken.cpp --contract=bos.pegtoken --output=bos.pegtoken.abi
+
 
 rm ./bos.pegtoken.wast
 eosio-cpp -o ./bos.pegtoken.wast ./bos.pegtoken.cpp

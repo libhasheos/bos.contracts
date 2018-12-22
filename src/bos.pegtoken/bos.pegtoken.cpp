@@ -44,6 +44,13 @@ namespace eosio {
 
 constexpr uint32_t ONE_DAY = 24 * 60 * 60;
 
+enum withdraw_state : uint64_t {
+    INITIAL_STATE = 0,
+    FEED_BACK = 2,
+    SEND_BACK = 3,
+    ROLL_BACK = 5,
+};
+
 ////////////////////////
 // private funcs
 ////////////////////////
@@ -104,6 +111,8 @@ void pegtoken::create(name issuer, symbol sym)
     auto stats_table = stats(get_self(), sym.code().raw());
     eosio_assert(stats_table.find(sym.code().raw()) == stats_table.end(), "token with symbol already exists");
 
+    volatile auto tmp = stats_table.template get_index<"issuer"_n>();
+
     stats_table.emplace(get_self(), [&](auto& p) {
         p.supply = asset(0, sym);
         p.max_limit = p.supply;
@@ -117,7 +126,7 @@ void pegtoken::create(name issuer, symbol sym)
         p.service_fee_rate = 0;
         p.issuer = issuer;
         p.acceptor = issuer;
-        p.active = false;
+        p.active = true;
     });
 
     auto syms = symbols(get_self(), get_self().value);
@@ -169,16 +178,16 @@ void pegtoken::setlimit(asset max_limit, asset min_limit, asset total_limit, uin
     });
 }
 
-void pegtoken::setauditor(symbol_code sym_code, name auditor, string action)
+void pegtoken::setauditor(symbol_code sym_code, string action, name auditor)
 {
     { ACCOUNT_CHECK(auditor) };
 
-    NEED_ISSUER_AUTH(sym_code.raw())
+    { NEED_ISSUER_AUTH(sym_code.raw()) };
 
     auto auds = auditors(_self, sym_code.raw());
     if (action == "add") {
         eosio_assert(auds.find(auditor.value) == auds.end(), "auditor already exist");
-        auds.emplace(iter->issuer, [&](auto& p) {
+        auds.emplace(get_self(), [&](auto& p) {
             p.auditor = auditor;
         });
     } else if (action == "remove") {
@@ -221,10 +230,11 @@ void pegtoken::issue(asset quantity, string memo)
     });
 
     auto oper = operates(get_self(), quantity.symbol.code().raw());
-    oper.emplace(iter->issuer, [&](auto& p) {
+    oper.emplace(get_self(), [&](auto& p) {
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+        p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
 }
@@ -246,10 +256,11 @@ void pegtoken::retire(asset quantity, string memo)
     });
 
     auto oper = operates(get_self(), quantity.symbol.code().raw());
-    oper.emplace(iter->issuer, [&](auto& p) {
+    oper.emplace(get_self(), [&](auto& p) {
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+        p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
 }
@@ -259,15 +270,17 @@ void pegtoken::applicant(symbol_code sym_code, string action, name applicant)
 
     { ACCOUNT_CHECK(applicant) };
 
-    NEED_ISSUER_AUTH(sym_code.raw())
-    eosio_assert(applicant != get_self(), "applicant can`t be contract");
-    eosio_assert(applicant != iter->issuer, "applicant can`t be issuer");
-    eosio_assert(applicant != iter->acceptor, "applicant can`t be acceptor");
+    {
+        NEED_ISSUER_AUTH(sym_code.raw())
+        eosio_assert(applicant != get_self(), "applicant can`t be contract");
+        eosio_assert(applicant != iter->issuer, "applicant can`t be issuer");
+        eosio_assert(applicant != iter->acceptor, "applicant can`t be acceptor");
+    }
 
     auto appl = applicants(get_self(), sym_code.raw());
     if (action == "add") {
         eosio_assert(appl.find(applicant.value) == appl.end(), "applicant already exist");
-        appl.emplace(iter->issuer, [&](auto& p) {
+        appl.emplace(get_self(), [&](auto& p) {
             p.applicant = applicant;
         });
     } else if (action == "remove") {
@@ -283,19 +296,20 @@ void pegtoken::applyaddr(name applicant, symbol_code sym_code, name to)
 {
     require_auth(applicant);
 
-    ACCOUNT_CHECK(to)
+    { ACCOUNT_CHECK(to) };
+    { ACCOUNT_EXCLUDE(to, sym_code.raw()) };
 
     auto appl = applicants(get_self(), sym_code.raw());
     eosio_assert(appl.find(applicant.value) != appl.end(), "applicant dose not exist");
 
-    { ACCOUNT_EXCLUDE(to, sym_code.raw()) };
-
-    auto addresses = rchrgaddrs(get_self(), sym_code.raw());
+    auto addresses = addrs(get_self(), sym_code.raw());
     eosio_assert(addresses.find(to.value) == addresses.end(), "to account has applied for address already");
 
-    addresses.emplace(applicant, [&](auto& p) {
+    addresses.emplace(get_self(), [&](auto& p) {
         p.owner = to;
         p.state = to.value;
+        p.create_time = time_point_sec(now());
+        p.assign_time = time_point_sec(now());
     });
 }
 
@@ -305,34 +319,33 @@ void pegtoken::assignaddr(symbol_code sym_code, name to, string address)
 
     STRING_LEN_CHECK(address, 64)
 
-    name payer;
     {
         ACCOUNT_EXCLUDE(to, sym_code.raw())
-        require_auth(iter->issuer);
-        payer = iter->issuer;
+        require_auth(iter->acceptor);
     }
 
     verify_address(sym_code, address);
 
-    auto addresses = rchrgaddrs(get_self(), sym_code.raw());
-    auto addr = addresses.template get_index<"address"_n>();
-    auto iter = addr.find(hash64(address));
+    auto addresses = addrs(get_self(), sym_code.raw());
 
+    auto addr = addresses.template get_index<"addr"_n>();
+    auto iter = addr.find(hash64(address));
     eosio_assert(iter == addr.end(), ("this address " + address + " has been assigned to " + iter->owner.to_string()).c_str());
 
-    auto iter2 = addr.find(to.value);
-    if (iter2 == addr.end()) {
-        addresses.emplace(payer, [&](auto& p) {
+    auto iter2 = addresses.find(to.value);
+    if (iter2 == addresses.end()) {
+        addresses.emplace(get_self(), [&](auto& p) {
             p.owner = to;
             p.address = address;
             p.assign_time = time_point_sec(now());
-            p.state = 0;
+            p.state = to.value;
         });
     } else {
-        addr.modify(iter2, same_payer, [&](auto& p) {
+        print("modify");
+        addresses.modify(iter2, same_payer, [&](auto& p) {
             p.address = address;
             p.assign_time = time_point_sec(now());
-            p.state = 0;
+            p.state = to.value;
         });
     }
 }
@@ -366,15 +379,16 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
     }
 
     if (iter2 == stt.end()) {
-        stt.emplace(from, [&](auto& p) {
+        stt.emplace(get_self(), [&](auto& p) {
             p.owner = from;
             p.last_time = time_point_sec(now());
             p.frequency = 1;
             p.total = quantity;
             p.update_time = p.last_time;
+            p.update_time = time_point_sec(now());
         });
     } else {
-        eosio_assert(iter2->last_time.utc_seconds < now() - iter->interval_limit, "exceed interval_limit");
+        eosio_assert(iter2->last_time < time_point_sec(now()) - iter->interval_limit, "exceed interval_limit");
         if (iter2->last_time.utc_seconds / ONE_DAY != now() / ONE_DAY) {
             stt.modify(iter2, same_payer, [&](auto& p) {
                 p.last_time = time_point_sec(now());
@@ -407,9 +421,9 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
         p.from = from;
         p.to = to;
         p.quantity = quantity;
+        p.update_time = time_point_sec(now());
         p.create_time = time_point_sec(now());
-        // FIXME: state ?
-        p.state = 0;
+        p.state = withdraw_state::INITIAL_STATE;
         p.enable = !need_check;
         p.auditor = NIL_ACCOUNT;
     });
@@ -427,14 +441,18 @@ void pegtoken::deposit(name to, asset quantity, string memo)
     { ACCOUNT_EXCLUDE(to, quantity.symbol.code().raw()) };
 
     NEED_ACCEPTOR_AUTH(quantity.symbol.code().raw())
+
     SEND_INLINE_ACTION(*this, transfer, { { iter->acceptor, "active"_n } }, { iter->acceptor, to, quantity, "deposit account:" + to.to_string() + " memo:" + memo });
 
     auto depo = deposits(get_self(), quantity.symbol.code().raw());
-    depo.emplace(iter->acceptor, [&](auto& p) {
+    depo.emplace(get_self(), [&](auto& p) {
         p.id = depo.available_primary_key();
         p.from = iter->acceptor;
+        p.trx_id = get_trx_id();
         p.to = to.to_string();
         p.quantity = quantity;
+        p.update_time = time_point_sec(now());
+        p.create_time = time_point_sec(now());
         p.msg = memo;
     });
 }
@@ -498,7 +516,6 @@ void pegtoken::clear(symbol_code sym_code, uint64_t num)
 
 void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string remote_trx_id, string memo)
 {
-    auto state = 2;
 
     STRING_LEN_CHECK(memo, 256)
 
@@ -510,6 +527,7 @@ void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string
     auto trxids = withd.template get_index<"trxid"_n>();
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "this trx id does not exist");
+    eosio_assert(iter2->state == INITIAL_STATE, "invalid state");
 
     // defer delete
     uint128_t sender_id = iter2->id;
@@ -519,9 +537,8 @@ void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string
         std::make_tuple(iter2->id, iter2->quantity.symbol.code()) });
     tsn.delay_sec = iter->delayday * ONE_DAY;
     tsn.send(sender_id, get_self(), true);
-
     trxids.modify(iter2, same_payer, [&](auto& p) {
-        p.state = state;
+        p.state = withdraw_state::FEED_BACK;
         p.remote_trx_id = remote_trx_id;
     });
 }
@@ -537,6 +554,7 @@ void pegtoken::rollback(symbol_code sym_code, transaction_id_type trx_id, string
     auto trxids = withd.template get_index<"trxid"_n>();
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "this trx id does not exist");
+    eosio_assert(iter2->state == INITIAL_STATE, "invalid state");
 
     auto acct = accounts(get_self(), iter->acceptor.value);
     auto const& owner = acct.get(sym_code.raw(), "no balance object found");
@@ -552,7 +570,7 @@ void pegtoken::rollback(symbol_code sym_code, transaction_id_type trx_id, string
     tsn.send(sender_id, get_self(), true);
 
     trxids.modify(iter2, same_payer, [&](auto& p) {
-        p.state = state;
+        p.state = withdraw_state::ROLL_BACK;
     });
 }
 
@@ -602,12 +620,12 @@ void pegtoken::approve(symbol_code sym_code, name auditor, transaction_id_type t
     auto trxids = withd.template get_index<"trxid"_n>();
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "invalid trx_id");
+    eosio_assert(iter2->auditor == NIL_ACCOUNT, "already been approved/unapproved");
     trxids.modify(iter2, same_payer, [&](auto& p) {
-        if (iter2->auditor == NIL_ACCOUNT) {
-            p.auditor = auditor;
-            p.enable = true;
-        }
+        p.auditor = auditor;
+        p.enable = true;
         p.msg = (memo == "" ? p.msg : memo);
+        p.update_time = time_point_sec(now());
     });
 }
 
@@ -622,11 +640,10 @@ void pegtoken::unapprove(symbol_code sym_code, name auditor, transaction_id_type
     auto trxids = withd.template get_index<"trxid"_n>();
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "invalid trx_id");
+    eosio_assert(iter2->auditor == NIL_ACCOUNT, "already been approved/unapproved");
     trxids.modify(iter2, same_payer, [&](auto& p) {
-        if (iter2->auditor != NIL_ACCOUNT) {
-            p.auditor = auditor;
-            p.enable = false;
-        }
+        p.auditor = auditor;
+        p.enable = false;
         p.msg = (memo == "" ? p.msg : memo);
     });
 }
@@ -647,6 +664,7 @@ void pegtoken::sendback(name auditor, transaction_id_type trx_id, name to, asset
     auto trxids = withd.template get_index<"trxid"_n>();
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "invalid trx_id");
+    eosio_assert(iter2->state == withdraw_state::ROLL_BACK, "invalid state");
 
     // defer delete
     uint128_t sender_id = iter2->id;
@@ -658,8 +676,9 @@ void pegtoken::sendback(name auditor, transaction_id_type trx_id, name to, asset
     tsn.send(sender_id, get_self(), true);
 
     trxids.modify(iter2, same_payer, [&](auto& p) {
-        p.state = 3;
+        p.state = withdraw_state::SEND_BACK;
         p.msg = (memo == "" ? p.msg : memo);
+        p.update_time = time_point_sec(now());
     });
 }
 

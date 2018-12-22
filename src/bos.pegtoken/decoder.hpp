@@ -28,7 +28,6 @@ uint8_t hex_to_digit(char ch)
 
 string decode_hex(const void* data, uint64_t len)
 {
-
     auto src = static_cast<const uint8_t*>(data);
     string str(len * 2, 0);
     for (int i = 0; i < len; ++i) {
@@ -102,7 +101,7 @@ string checksum256_to_string(capi_checksum256 src)
     return decode_hex(src.hash, 32);
 }
 
-uint64_t hash64(string s)
+uint64_t hash64(const string s)
 {
     capi_checksum256 hash256;
     uint64_t res = 0;

@@ -8,25 +8,6 @@
 #include <eosiolib/time.hpp>
 #include <string>
 
-#define MULTI_INDEX_1(table) \
-    using table##s = eosio::multi_index<#table "s"##_n, table##_ts>;
-
-#define MULTI_INDEX_2(table, index_type, index_name)                \
-    using table##s = eosio::multi_index<#table "s"##_n, table##_ts, \
-        indexed_by<#index_name##_n, const_mem_fun<table##_ts, index_type, &table##_ts::by_##index_name>>>;
-
-#define MULTI_INDEX_4(table,                                                                                 \
-    index_type1, index_name1,                                                                                \
-    index_type2, index_name2,                                                                                \
-    index_type3, index_name3)                                                                                \
-    using table##s = eosio::multi_index<#table "s"##_n, table##_ts,                                          \
-        indexed_by<#index_name1##_n, const_mem_fun<table##_ts, index_type1, &table##_ts::by_##index_name1>>, \
-        indexed_by<#index_name2##_n, const_mem_fun<table##_ts, index_type2, &table##_ts::by_##index_name2>>, \
-        indexed_by<#index_name3##_n, const_mem_fun<table##_ts, index_type3, &table##_ts::by_##index_name3>>>;
-
-#define PRIMARY_KEY(pk) \
-    uint64_t primary_key() const { return pk; }
-
 namespace eosio {
 
 using transaction_id_type = capi_checksum256;
@@ -44,7 +25,7 @@ public:
 
     [[eosio::action]] void setlimit(asset max_limit, asset min_limit, asset total_limit, uint64_t frequency_limit, uint64_t interval_limit);
 
-    [[eosio::action]] void setauditor(symbol_code sym_code, name auditor, string action);
+    [[eosio::action]] void setauditor(symbol_code sym_code, string action, name auditor);
 
     [[eosio::action]] void setfee(double service_fee_rate, asset min_service_fee, asset miner_fee);
 
@@ -91,19 +72,19 @@ private:
     void add_balance(name owner, asset value, name ram_payer);
     void sub_balance(name owner, asset value);
 
-    struct [[eosio::table("symbols")]] symbol_ts {
+    struct [[eosio::table]] symbol_ts {
         symbol sym;
 
-        PRIMARY_KEY(sym.code().raw())
+        uint64_t primary_key() const { return sym.code().raw(); }
     };
 
-    struct [[eosio::table("applicants")]] applicant_ts {
+    struct [[eosio::table]] applicant_ts {
         name applicant;
 
         uint64_t primary_key() const { return applicant.value; }
     };
 
-    struct [[eosio::table("rchrgaddrs")]] rchrgaddr_ts {
+    struct [[eosio::table]] addr_ts {
         name owner;
         string address;
         uint64_t state;
@@ -111,33 +92,22 @@ private:
         time_point_sec assign_time;
         time_point_sec create_time;
 
-        PRIMARY_KEY(owner.value)
+        uint64_t primary_key() const { return owner.value; }
 
-        uint64_t by_address() const { return hash64(address); }
-        uint64_t by_state() const { return state; }
-
-        rchrgaddr_ts()
-            : create_time(now())
-        {
-        }
+        uint64_t by_addr() const { return hash64(address); }
     };
 
-    struct [[eosio::table("operates")]] operate_ts {
+    struct [[eosio::table]] operate_ts {
         uint64_t id;
         name to;
         asset quantity;
         string memo;
         time_point_sec operate_time;
 
-        PRIMARY_KEY(id)
-
-        operate_ts()
-            : operate_time(now())
-        {
-        }
+        uint64_t primary_key() const { return id; }
     };
 
-    struct [[eosio::table("withdraws")]] withdraw_ts {
+    struct [[eosio::table]] withdraw_ts {
         uint64_t id;
         transaction_id_type trx_id;
         name from;
@@ -153,7 +123,7 @@ private:
         time_point_sec create_time;
         time_point_sec update_time;
 
-        PRIMARY_KEY(id)
+        uint64_t primary_key() const { return id; }
 
         fixed_bytes<32> by_trxid() const { return trxid(trx_id); }
 
@@ -173,16 +143,10 @@ private:
             return index;
         }
 
-        withdraw_ts()
-            : create_time(now())
-            , update_time(now())
-        {
-        }
-
         static fixed_bytes<32> trxid(transaction_id_type trx_id) { return fixed_bytes<32>(trx_id.hash); }
     };
 
-    struct [[eosio::table("deposits")]] deposit_ts {
+    struct [[eosio::table]] deposit_ts {
         uint64_t id;
         transaction_id_type trx_id;
         name from;
@@ -195,39 +159,28 @@ private:
         time_point_sec create_time;
         time_point_sec update_time;
 
-        PRIMARY_KEY(id)
+        uint64_t primary_key() const { return id; }
 
         uint64_t by_delindex() const { return create_time.utc_seconds; }
-
-        deposit_ts()
-            : create_time(now())
-            , update_time(now())
-        {
-        }
     };
 
-    struct [[eosio::table("statistics")]] statistic_ts {
+    struct [[eosio::table]] statistic_ts {
         name owner;
         time_point_sec last_time;
         uint64_t frequency;
         asset total;
         time_point_sec update_time;
 
-        PRIMARY_KEY(owner.value);
-
-        statistic_ts()
-            : update_time(now())
-        {
-        }
+        uint64_t primary_key() const { return owner.value; }
     };
 
-    struct [[eosio::table("accounts")]] account_ts {
+    struct [[eosio::table]] account_ts {
         asset balance;
 
-        PRIMARY_KEY(balance.symbol.code().raw())
+        uint64_t primary_key() const { return balance.symbol.code().raw(); }
     };
 
-    struct [[eosio::table("stats")]] stat_ts {
+    struct [[eosio::table]] stat_ts {
         asset supply;
         asset max_limit;
         asset min_limit;
@@ -244,25 +197,42 @@ private:
         asset miner_fee;
         bool active;
 
-        PRIMARY_KEY(supply.symbol.code().raw())
+        uint64_t primary_key() const { return supply.symbol.code().raw(); }
+
+        uint64_t by_issuer() const { return issuer.value; }
     };
 
-    struct [[eosio::table("auditors")]] auditor_ts {
+    struct [[eosio::table]] auditor_ts {
         name auditor;
 
-        PRIMARY_KEY(auditor.value)
+        uint64_t primary_key() const { return auditor.value; }
     };
 
-    MULTI_INDEX_1(symbol)
-    MULTI_INDEX_1(applicant)
-    MULTI_INDEX_2(rchrgaddr, uint64_t, address)
-    MULTI_INDEX_1(operate)
-    MULTI_INDEX_4(withdraw, fixed_bytes<32>, trxid, uint128_t, delindex, uint128_t, queindex)
-    MULTI_INDEX_2(deposit, uint64_t, delindex)
-    MULTI_INDEX_1(statistic)
-    MULTI_INDEX_1(account)
-    MULTI_INDEX_1(stat)
-    MULTI_INDEX_1(auditor)
+    using symbols = eosio::multi_index<"symbols"_n, symbol_ts>;
+
+    using applicants = eosio::multi_index<"applicants"_n, applicant_ts>;
+
+    using addrs = eosio::multi_index<"addrs"_n, addr_ts,
+        indexed_by<"addr"_n, const_mem_fun<addr_ts, uint64_t, &addr_ts::by_addr>>>;
+
+    using operates = eosio::multi_index<"operates"_n, operate_ts>;
+
+    using withdraws = eosio::multi_index<"withdraws"_n, withdraw_ts,
+        indexed_by<"trxid"_n, const_mem_fun<withdraw_ts, fixed_bytes<32>, &withdraw_ts::by_trxid>>,
+        indexed_by<"delindex"_n, const_mem_fun<withdraw_ts, uint128_t, &withdraw_ts::by_delindex>>,
+        indexed_by<"queindex"_n, const_mem_fun<withdraw_ts, uint128_t, &withdraw_ts::by_queindex>>>;
+
+    using deposits = eosio::multi_index<"deposits"_n, deposit_ts,
+        indexed_by<"delindex"_n, const_mem_fun<deposit_ts, uint64_t, &deposit_ts::by_delindex>>>;
+
+    using statistics = eosio::multi_index<"statistics"_n, statistic_ts>;
+
+    using accounts = eosio::multi_index<"accounts"_n, account_ts>;
+
+    using stats = eosio::multi_index<"stats"_n, stat_ts,
+        indexed_by<"issuer"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_issuer>>>;
+
+    using auditors = eosio::multi_index<"s"_n, auditor_ts>;
 };
 
 } // namespace eosio
