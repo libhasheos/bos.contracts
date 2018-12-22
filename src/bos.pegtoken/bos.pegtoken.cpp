@@ -38,7 +38,7 @@
         eosio_assert(appl.find(account.value) == appl.end(), #account " can't be applicant "); \
     }
 
-#define NIL_ACCOUNT ""_n
+#define NIL_ACCOUNT "nil"_n
 
 namespace eosio {
 
@@ -49,11 +49,11 @@ constexpr uint32_t ONE_DAY = 24 * 60 * 60;
 ////////////////////////
 void pegtoken::verify_address(symbol_code sym_code, string addr)
 {
-    if (sym_code.raw() == ("BTC"_n).value) {
+    if (sym_code == symbol_code("BTC")) {
         eosio_assert(valid_bitcoin_addr(addr), "invalid bitcoin addr");
-    } else if (sym_code.raw() == ("ETH"_n).value) {
+    } else if (sym_code == symbol_code("ETH")) {
         eosio_assert(valid_ethereum_addr(addr), "invalid ethereum addr");
-    } else if (sym_code.raw() == ("EOS"_n).value) {
+    } else if (sym_code == symbol_code("EOS")) {
         auto _ = name(addr);
     } else {
         eosio_assert(false, "only EOS, BTC and ETH supported");
@@ -137,6 +137,7 @@ void pegtoken::init(symbol_code sym_code, string organization, string website, n
         p.organization = organization;
         p.website = website;
         p.acceptor = acceptor;
+        p.active = true;
     });
 }
 

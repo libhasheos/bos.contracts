@@ -91,19 +91,19 @@ private:
     void add_balance(name owner, asset value, name ram_payer);
     void sub_balance(name owner, asset value);
 
-    struct [[eosio::table]] symbol_ts {
+    struct [[eosio::table("symbols")]] symbol_ts {
         symbol sym;
 
         PRIMARY_KEY(sym.code().raw())
     };
 
-    struct [[eosio::table]] applicant_ts {
+    struct [[eosio::table("applicants")]] applicant_ts {
         name applicant;
 
         uint64_t primary_key() const { return applicant.value; }
     };
 
-    struct [[eosio::table]] rchrgaddr_ts {
+    struct [[eosio::table("rchrgaddrs")]] rchrgaddr_ts {
         name owner;
         string address;
         uint64_t state;
@@ -122,7 +122,7 @@ private:
         }
     };
 
-    struct [[eosio::table]] operate_ts {
+    struct [[eosio::table("operates")]] operate_ts {
         uint64_t id;
         name to;
         asset quantity;
@@ -137,7 +137,7 @@ private:
         }
     };
 
-    struct [[eosio::table]] withdraw_ts {
+    struct [[eosio::table("withdraws")]] withdraw_ts {
         uint64_t id;
         transaction_id_type trx_id;
         name from;
@@ -182,7 +182,7 @@ private:
         static fixed_bytes<32> trxid(transaction_id_type trx_id) { return fixed_bytes<32>(trx_id.hash); }
     };
 
-    struct [[eosio::table]] deposit_ts {
+    struct [[eosio::table("deposits")]] deposit_ts {
         uint64_t id;
         transaction_id_type trx_id;
         name from;
@@ -206,7 +206,7 @@ private:
         }
     };
 
-    struct [[eosio::table]] statistic_ts {
+    struct [[eosio::table("statistics")]] statistic_ts {
         name owner;
         time_point_sec last_time;
         uint64_t frequency;
@@ -221,13 +221,13 @@ private:
         }
     };
 
-    struct [[eosio::table]] account_ts {
+    struct [[eosio::table("accounts")]] account_ts {
         asset balance;
 
         PRIMARY_KEY(balance.symbol.code().raw())
     };
 
-    struct [[eosio::table]] stat_ts {
+    struct [[eosio::table("stats")]] stat_ts {
         asset supply;
         asset max_limit;
         asset min_limit;
@@ -247,7 +247,7 @@ private:
         PRIMARY_KEY(supply.symbol.code().raw())
     };
 
-    struct [[eosio::table]] auditor_ts {
+    struct [[eosio::table("auditors")]] auditor_ts {
         name auditor;
 
         PRIMARY_KEY(auditor.value)
