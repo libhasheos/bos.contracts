@@ -234,6 +234,7 @@ void pegtoken::issue(asset quantity, string memo)
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+        p.type = 1;
         p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
@@ -260,12 +261,13 @@ void pegtoken::retire(asset quantity, string memo)
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+	p.type = 0;
         p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
 }
 
-void pegtoken::applicant(symbol_code sym_code, string action, name applicant)
+void pegtoken::setpartner(symbol_code sym_code, string action, name applicant)
 {
 
     { ACCOUNT_CHECK(applicant) };
@@ -696,4 +698,4 @@ void pegtoken::rmwithdraw(uint64_t id, symbol_code sym_code)
 
 } // namespace eosio
 
-EOSIO_DISPATCH(eosio::pegtoken, (create)(init)(update)(setlimit)(setauditor)(setfee)(issue)(retire)(applicant)(applyaddr)(assignaddr)(withdraw)(deposit)(transfer)(clear)(feedback)(rollback)(setacceptor)(setdelay)(lockall)(unlockall)(approve)(unapprove)(sendback)(rmwithdraw));
+EOSIO_DISPATCH(eosio::pegtoken, (create)(init)(update)(setlimit)(setauditor)(setfee)(issue)(retire)(setpartner)(applyaddr)(assignaddr)(withdraw)(deposit)(transfer)(clear)(feedback)(rollback)(setacceptor)(setdelay)(lockall)(unlockall)(approve)(unapprove)(sendback)(rmwithdraw));

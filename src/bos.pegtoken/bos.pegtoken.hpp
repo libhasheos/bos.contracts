@@ -33,7 +33,7 @@ public:
 
     [[eosio::action]] void retire(asset quantity, string memo);
 
-    [[eosio::action]] void applicant(symbol_code sym_code, string action, name applicant);
+    [[eosio::action]] void setpartner(symbol_code sym_code, string action, name applicant);
 
     [[eosio::action]] void applyaddr(name applicant, symbol_code sym_code, name to);
 
@@ -101,6 +101,7 @@ private:
         uint64_t id;
         name to;
         asset quantity;
+        uint64_t type;
         string memo;
         time_point_sec operate_time;
 
@@ -232,7 +233,7 @@ private:
     using stats = eosio::multi_index<"stats"_n, stat_ts,
         indexed_by<"issuer"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_issuer>>>;
 
-    using auditors = eosio::multi_index<"s"_n, auditor_ts>;
+    using auditors = eosio::multi_index<"auditors"_n, auditor_ts>;
 };
 
 } // namespace eosio
