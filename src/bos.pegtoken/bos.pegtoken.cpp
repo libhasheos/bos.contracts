@@ -532,6 +532,7 @@ void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "this trx id does not exist");
     eosio_assert(iter2->state == INITIAL_STATE, "invalid state");
+    eosio_assert(iter2->enable == true, "cannot be processed");
 
     // defer delete
     uint128_t sender_id = iter2->id;
@@ -560,6 +561,7 @@ void pegtoken::rollback(symbol_code sym_code, transaction_id_type trx_id, string
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "this trx id does not exist");
     eosio_assert(iter2->state == INITIAL_STATE, "invalid state");
+    eosio_assert(iter2->enable == true, "cannot be processed");
 
     auto acct = accounts(get_self(), iter->acceptor.value);
     auto const& owner = acct.get(sym_code.raw(), "no balance object found");
@@ -671,6 +673,7 @@ void pegtoken::sendback(name auditor, transaction_id_type trx_id, name to, asset
     auto iter2 = trxids.find(withdraw_ts::trxid(trx_id));
     eosio_assert(iter2 != trxids.end(), "invalid trx_id");
     eosio_assert(iter2->state == withdraw_state::ROLL_BACK, "invalid state");
+    eosio_assert(iter2->enable == true, "cannot be processed");
 
     // defer delete
     uint128_t sender_id = iter2->id;
