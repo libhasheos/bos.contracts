@@ -101,6 +101,7 @@ private:
         uint64_t id;
         name to;
         asset quantity;
+        uint64_t type;
         string memo;
         time_point_sec operate_time;
 

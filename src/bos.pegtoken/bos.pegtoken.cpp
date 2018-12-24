@@ -234,6 +234,7 @@ void pegtoken::issue(asset quantity, string memo)
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+        p.type = 1;
         p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
@@ -260,6 +261,7 @@ void pegtoken::retire(asset quantity, string memo)
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
+	p.type = 0;
         p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
