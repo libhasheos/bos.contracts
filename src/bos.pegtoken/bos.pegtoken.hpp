@@ -140,7 +140,9 @@ private:
 
         uint128_t by_queindex() const
         {
-            uint128_t index = state;
+            uint128_t index = enable ? 1 : 0;
+            index <<= 32;
+            index += state;
             index <<= 64;
             index += id;
             return index;
