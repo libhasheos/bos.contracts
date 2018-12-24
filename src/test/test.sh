@@ -35,9 +35,9 @@ cleos  push action bos.pegtoken update '[ "BTC", "huobipool", "http://www.poolhu
 cleos  push action bos.pegtoken update '[ "ETH", "huobipool", "http://www.poolhuobi.com" ]' -p peghuobipool
 cleos  push action bos.pegtoken update '[ "EOS", "huobipool", "http://www.poolhuobi.com" ]' -p peghuobipool
 
-cleos  push action bos.pegtoken applicant '[ "BTC", "add", "huobipartner" ]' -p peghuobipool
-cleos  push action bos.pegtoken applicant '[ "ETH", "add", "huobipartner" ]' -p peghuobipool
-cleos  push action bos.pegtoken applicant '[ "EOS", "add", "huobipartner" ]' -p peghuobipool
+cleos  push action bos.pegtoken setpartner '[ "BTC", "add", "huobipartner" ]' -p peghuobipool
+cleos  push action bos.pegtoken setpartner '[ "ETH", "add", "huobipartner" ]' -p peghuobipool
+cleos  push action bos.pegtoken setpartner '[ "EOS", "add", "huobipartner" ]' -p peghuobipool
 
 cleos  push action bos.pegtoken applyaddr '[ "huobipartner", "BTC", "huobiliqiang" ]' -p huobipartner
 cleos  push action bos.pegtoken applyaddr '[ "huobipartner", "ETH", "huobiliqiang" ]' -p huobipartner
