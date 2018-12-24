@@ -232,7 +232,7 @@ private:
     using stats = eosio::multi_index<"stats"_n, stat_ts,
         indexed_by<"issuer"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_issuer>>>;
 
-    using auditors = eosio::multi_index<"s"_n, auditor_ts>;
+    using auditors = eosio::multi_index<"auditors"_n, auditor_ts>;
 };
 
 } // namespace eosio
