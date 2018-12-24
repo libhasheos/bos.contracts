@@ -520,6 +520,7 @@ void pegtoken::feedback(symbol_code sym_code, transaction_id_type trx_id, string
     STRING_LEN_CHECK(memo, 256)
 
     NEED_ACCEPTOR_AUTH(sym_code.raw())
+    eosio_assert(iter->active, "underwriter is not active");
 
     // TODO: check remote_trx_id
 
@@ -549,6 +550,7 @@ void pegtoken::rollback(symbol_code sym_code, transaction_id_type trx_id, string
     STRING_LEN_CHECK(memo, 256)
 
     NEED_ACCEPTOR_AUTH(sym_code.raw())
+    eosio_assert(iter->active, "underwriter is not active");
 
     auto withd = withdraws(get_self(), sym_code.raw());
     auto trxids = withd.template get_index<"trxid"_n>();
@@ -657,6 +659,7 @@ void pegtoken::sendback(name auditor, transaction_id_type trx_id, name to, asset
     };
 
     ACCOUNT_EXCLUDE(to, quantity.symbol.code().raw())
+    eosio_assert(iter->active, "underwriter is not active");
 
     eosio_assert(quantity.amount > 0, "invalid quantity amount");
 
