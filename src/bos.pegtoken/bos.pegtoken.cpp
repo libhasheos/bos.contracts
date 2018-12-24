@@ -265,7 +265,7 @@ void pegtoken::retire(asset quantity, string memo)
     });
 }
 
-void pegtoken::applicant(symbol_code sym_code, string action, name applicant)
+void pegtoken::setpartner(symbol_code sym_code, string action, name applicant)
 {
 
     { ACCOUNT_CHECK(applicant) };
@@ -693,4 +693,4 @@ void pegtoken::rmwithdraw(uint64_t id, symbol_code sym_code)
 
 } // namespace eosio
 
-EOSIO_DISPATCH(eosio::pegtoken, (create)(init)(update)(setlimit)(setauditor)(setfee)(issue)(retire)(applicant)(applyaddr)(assignaddr)(withdraw)(deposit)(transfer)(clear)(feedback)(rollback)(setacceptor)(setdelay)(lockall)(unlockall)(approve)(unapprove)(sendback)(rmwithdraw));
+EOSIO_DISPATCH(eosio::pegtoken, (create)(init)(update)(setlimit)(setauditor)(setfee)(issue)(retire)(setpartner)(applyaddr)(assignaddr)(withdraw)(deposit)(transfer)(clear)(feedback)(rollback)(setacceptor)(setdelay)(lockall)(unlockall)(approve)(unapprove)(sendback)(rmwithdraw));

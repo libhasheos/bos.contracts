@@ -33,7 +33,7 @@ public:
 
     [[eosio::action]] void retire(asset quantity, string memo);
 
-    [[eosio::action]] void applicant(symbol_code sym_code, string action, name applicant);
+    [[eosio::action]] void setpartner(symbol_code sym_code, string action, name applicant);
 
     [[eosio::action]] void applyaddr(name applicant, symbol_code sym_code, name to);
 
