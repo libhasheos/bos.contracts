@@ -2,7 +2,7 @@
 #include <eosiolib/transaction.hpp>
 
 #define STRING_LEN_CHECK(str, len) \
-    eosio_assert(str.size() <= len, "param " #str " too long, maxmium length is " #len);
+    eosio_assert((str).size() <= len, "param " #str " too long, maximum length is " #len);
 
 #define ACCOUNT_CHECK(account) \
     eosio_assert(is_account(account), "invalid account " #account);
@@ -261,7 +261,7 @@ void pegtoken::retire(asset quantity, string memo)
         p.id = oper.available_primary_key();
         p.to = iter->acceptor;
         p.quantity = quantity;
-	p.type = 0;
+        p.type = 0;
         p.operate_time = time_point_sec(now());
         p.memo = memo;
     });
@@ -357,6 +357,7 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
     require_auth(from);
 
     STRING_LEN_CHECK(memo, 256)
+    STRING_LEN_CHECK(to, 256)
 
     eosio_assert(quantity.is_valid(), "invalid quantity");
     eosio_assert(quantity.amount > 0, "must withdraw positive quantity");
