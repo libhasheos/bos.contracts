@@ -95,6 +95,8 @@ private:
         uint64_t primary_key() const { return owner.value; }
 
         uint64_t by_addr() const { return hash64(address); }
+
+        uint64_t by_state() const { return state; }
     };
 
     struct [[eosio::table]] operate_ts {
@@ -213,7 +215,8 @@ private:
     using applicants = eosio::multi_index<"applicants"_n, applicant_ts>;
 
     using addrs = eosio::multi_index<"addrs"_n, addr_ts,
-        indexed_by<"addr"_n, const_mem_fun<addr_ts, uint64_t, &addr_ts::by_addr>>>;
+        indexed_by<"addr"_n, const_mem_fun<addr_ts, uint64_t, &addr_ts::by_addr>>,
+        indexed_by<"state"_n, const_mem_fun<addr_ts, uint64_t, &addr_ts::by_state>>>;
 
     using operates = eosio::multi_index<"operates"_n, operate_ts>;
 
