@@ -1,6 +1,5 @@
 #pragma once
 
-#include "sha3.h"
 #include <algorithm>
 #include <cstdio>
 #include <eosiolib/crypto.h>
@@ -65,24 +64,14 @@ bool valid_ethereum_addr(string addr)
     if (prefix_index == 0)
         addr = addr.substr(prefix_index + 2);
 
-    auto origin_addr = addr;
+    eosio_assert(addr.size() == 40, "invalid eth adr len, expected: 40");
 
-    std::transform(addr.begin(), addr.end(), addr.begin(), ::tolower);
-
-    uint8_t buf[addr.length()];
-    int i = 0;
-    for (auto& r : addr)
-        buf[i++] = r;
-    uint8_t out[32];
-
-    keccak_256(out, sizeof(out), buf, addr.length());
-
-    auto mask = decode_hex(out, sizeof(out));
-    for (int i = 0; i < addr.size(); ++i) {
-        addr[i] = (hex_to_digit(mask[i]) > 7) ? ::toupper(addr[i]) : ::tolower(addr[i]);
+    for (auto& r : addr) {
+        if ((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F'))
+            continue;
+        return false;
     }
-
-    return addr == origin_addr;
+    return true;
 }
 
 capi_checksum256 get_trx_id()
