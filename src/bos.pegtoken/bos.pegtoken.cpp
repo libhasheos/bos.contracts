@@ -340,14 +340,14 @@ void pegtoken::assignaddr(symbol_code sym_code, name to, string address)
             p.owner = to;
             p.address = address;
             p.assign_time = time_point_sec(now());
-            p.state = to.value;
+            p.state = 0;
         });
     } else {
         print("modify");
         addresses.modify(iter2, same_payer, [&](auto& p) {
             p.address = address;
             p.assign_time = time_point_sec(now());
-            p.state = to.value;
+            p.state = 0;
         });
     }
 }
