@@ -586,6 +586,11 @@ void pegtoken::setacceptor(symbol_code sym_code, name acceptor)
     { ACCOUNT_CHECK(acceptor) };
 
     NEED_ISSUER_AUTH(sym_code.raw())
+
+    auto acct = accounts(get_self(), acceptor.value);
+    auto balance = acct.find(sym_code.raw());
+    eosio_assert(balance == acct.end() || balance->balance.amount == 0, "acceptor's balance should be 0");
+
     stats_table.modify(iter, same_payer, [&](auto& p) {
         p.acceptor = acceptor;
     });
