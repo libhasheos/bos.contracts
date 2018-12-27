@@ -97,6 +97,19 @@ void pegtoken::add_balance(name owner, asset value, name ram_payer)
     }
 }
 
+bool pegtoken::balance_check(symbol_code sym_code, name user)
+{
+    auto acct = accounts(get_self(), user.value);
+    auto balance = acct.find(sym_code.raw());
+    return balance == acct.end() || balance->balance.amount == 0;
+}
+
+bool pegtoken::addr_check(symbol_code sym_code, name user)
+{
+    auto addresses = addrs(get_self(), sym_code.raw());
+    return addresses.find(user.value) == addresses.end();
+}
+
 ////////////////////////
 // actions
 ////////////////////////
@@ -142,6 +155,10 @@ void pegtoken::init(symbol_code sym_code, string organization, string website, n
 
     NEED_ISSUER_AUTH(sym_code.raw())
 
+    auto accp = stats_table.template get_index<"acceptor"_n>();
+    eosio_assert(accp.find(acceptor.value) == accp.end(), "acceptor already in use");
+
+    eosio_assert(iter->acceptor == iter->issuer, "already initted");
     stats_table.modify(iter, same_payer, [&](auto& p) {
         p.organization = organization;
         p.website = website;
@@ -184,6 +201,9 @@ void pegtoken::setauditor(symbol_code sym_code, string action, name auditor)
 
     { NEED_ISSUER_AUTH(sym_code.raw()) };
 
+    eosio_assert(balance_check(sym_code, auditor), "auditor`s balance should be 0");
+    eosio_assert(addr_check(sym_code, auditor), "auditor`s address should be null");
+
     auto auds = auditors(_self, sym_code.raw());
     if (action == "add") {
         eosio_assert(auds.find(auditor.value) == auds.end(), "auditor already exist");
@@ -193,7 +213,7 @@ void pegtoken::setauditor(symbol_code sym_code, string action, name auditor)
     } else if (action == "remove") {
         auto iter = auds.find(auditor.value);
         eosio_assert(iter != auds.end(), ("auditor " + auditor.to_string() + " not exist").c_str());
-        auds.erase(auds.find(auditor.value));
+        auds.erase(iter);
     } else {
         eosio_assert(false, ("invalid action: " + action).c_str());
     }
@@ -279,6 +299,9 @@ void pegtoken::setpartner(symbol_code sym_code, string action, name applicant)
         eosio_assert(applicant != iter->acceptor, "applicant can`t be acceptor");
     }
 
+    eosio_assert(balance_check(sym_code, applicant), "applicant`s balance should be 0");
+    eosio_assert(addr_check(sym_code, applicant), "applicant`s address should be null");
+
     auto appl = applicants(get_self(), sym_code.raw());
     if (action == "add") {
         eosio_assert(appl.find(applicant.value) == appl.end(), "applicant already exist");
@@ -357,7 +380,7 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
     require_auth(from);
 
     STRING_LEN_CHECK(memo, 256)
-    STRING_LEN_CHECK(to, 256)
+    STRING_LEN_CHECK(to, 64)
 
     eosio_assert(quantity.is_valid(), "invalid quantity");
     eosio_assert(quantity.amount > 0, "must withdraw positive quantity");
@@ -388,10 +411,9 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
             p.frequency = 1;
             p.total = quantity;
             p.update_time = p.last_time;
-            p.update_time = time_point_sec(now());
         });
     } else {
-        eosio_assert(iter2->last_time < time_point_sec(now()) - iter->interval_limit, "exceed interval_limit");
+        eosio_assert(iter2->last_time < time_point_sec(now()) - iter->interval_limit, "operate twice in interval_limit");
         if (iter2->last_time.utc_seconds / ONE_DAY != now() / ONE_DAY) {
             stt.modify(iter2, same_payer, [&](auto& p) {
                 p.last_time = time_point_sec(now());
@@ -428,6 +450,7 @@ void pegtoken::withdraw(name from, string to, asset quantity, string memo)
         p.create_time = time_point_sec(now());
         p.state = withdraw_state::INITIAL_STATE;
         p.enable = !need_check;
+        p.msg = need_check ? "need review" : "";
         p.auditor = NIL_ACCOUNT;
     });
 }
@@ -587,9 +610,15 @@ void pegtoken::setacceptor(symbol_code sym_code, name acceptor)
 
     NEED_ISSUER_AUTH(sym_code.raw())
 
+    eosio_assert(balance_check(sym_code, acceptor), "acceptor`s balance should be 0");
+    eosio_assert(addr_check(sym_code, acceptor), "acceptor`s address should be null");
+
     auto acct = accounts(get_self(), acceptor.value);
     auto balance = acct.find(sym_code.raw());
     eosio_assert(balance == acct.end() || balance->balance.amount == 0, "acceptor's balance should be 0");
+
+    auto accp = stats_table.template get_index<"acceptor"_n>();
+    eosio_assert(accp.find(acceptor.value) == accp.end(), "acceptor already in use");
 
     stats_table.modify(iter, same_payer, [&](auto& p) {
         p.acceptor = acceptor;

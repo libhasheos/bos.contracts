@@ -72,6 +72,9 @@ private:
     void add_balance(name owner, asset value, name ram_payer);
     void sub_balance(name owner, asset value);
 
+    bool balance_check(symbol_code sym_code, name user);
+    bool addr_check(symbol_code sym_code, name user);
+
     struct [[eosio::table]] symbol_ts {
         symbol sym;
 
@@ -205,6 +208,8 @@ private:
         uint64_t primary_key() const { return supply.symbol.code().raw(); }
 
         uint64_t by_issuer() const { return issuer.value; }
+
+        uint64_t by_acceptor() const { return acceptor.value; }
     };
 
     struct [[eosio::table]] auditor_ts {
@@ -236,7 +241,8 @@ private:
     using accounts = eosio::multi_index<"accounts"_n, account_ts>;
 
     using stats = eosio::multi_index<"stats"_n, stat_ts,
-        indexed_by<"issuer"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_issuer>>>;
+        indexed_by<"issuer"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_issuer>>,
+        indexed_by<"acceptor"_n, const_mem_fun<stat_ts, uint64_t, &stat_ts::by_acceptor>>>;
 
     using auditors = eosio::multi_index<"auditors"_n, auditor_ts>;
 };
