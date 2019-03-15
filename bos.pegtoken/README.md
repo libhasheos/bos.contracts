@@ -1,21 +1,16 @@
-macos下, 假设当前目录为
+# README
 
-/Users/huobi
+## Build
 
-编译：
+### Testnet
 
-$ cd /Users/huobi/bos.pegtoken
+```
+./build-testnet.sh
+```
 
-$ docker-compose up -d
+### Mainnet
 
-测试链:
-$ docker-compose exec cdt /bin/sh /bos-mnt/build-testnet.sh
-主链:
-$ docker-compose exec cdt /bin/sh /bos-mnt/build-mainnet.sh
-
-$ docker-compose down
-
-发布：
-
-$ cleos set contract pegtoken /Users/huobi/bos.pegtoken -p pegtoken
+```
+./build-mainnet.sh
+```
 

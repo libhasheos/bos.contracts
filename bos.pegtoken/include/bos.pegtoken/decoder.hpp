@@ -176,7 +176,8 @@ bool valid_usdt_addr(string addr)
             return valid_bitcoin_addr(splitted_addr[1]);
         } else if (splitted_addr[0] == "ETH") {
             return valid_ethereum_addr(splitted_addr[1]);
-        } else {
+        } 
+        else {
             return false;
         }
     } break;
