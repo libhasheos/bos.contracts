@@ -134,10 +134,9 @@ private:
     void is_auth_teller(symbol_code sym_code);
     void is_auth_auditor(symbol_code sym_code);
     void is_auth_brakeman(symbol_code sym_code);
-
+    void is_auth_gatherer(symbol_code sym_code);
     void is_auth_role(symbol_code sym_code, name account);
     void is_auth_role_exc_gatherer(symbol_code sym_code, name account);
-    // 检查是否被锁住,stats和infos的active字段
 
     name get_gatherer(symbol_code sym_code);
     name get_auditor(symbol_code sym_code);
@@ -712,7 +711,7 @@ private:
 
     void pegtoken::is_auth_auditor(symbol_code sym_code){
         auto auditor_tb = auditors(get_self(),sym_code.raw());
-        auto auditor_val = auditor_tb.get(sym_code.raw(), "the v2 token NOT in auditors table");
+        auto auditor_val = auditor_tb.get(sym_code.raw(), "the token NOT in auditors table");
         require_auth(auditor_val.auditor);
     }
 
@@ -721,6 +720,12 @@ private:
         auto brake_iter = brakeman_tb.begin();
         eosio_assert(brake_iter != brakeman_tb.end(), "the token not in brakemans table");
         require_auth(brake_iter->brakeman);
+    }
+
+    void pegtoken::is_auth_gatherer(symbol_code sym_code) {
+        auto gatherer_tb = gatherers(get_self(),sym_code.raw());
+        auto gatherer_val = gatherer_tb.get(sym_code.raw(), "the token not in gatherers table");
+        require_auth(gatherer_val.gatherer);
     }
 
     void pegtoken::is_auth_role(symbol_code sym_code, name account) {

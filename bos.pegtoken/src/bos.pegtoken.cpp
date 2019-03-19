@@ -118,35 +118,16 @@ namespace eosio {
         auto vipfee_table = vipfees(get_self(), sym_raw);
         
         auto iter_vip = vip_table.find(vip.value);
-        if(iter_vip == vip_table.end()) {
-            vip_table.emplace(get_self(), [&](auto &p) {
-                p.vip = vip;
-                p.create_time = time_point_sec(now());
-            });
-            viplimit_table.emplace(get_self(), [&](auto &p) {
-                p.owner = vip;
-                p.maximum_limit = maximum_limit;
-                p.minimum_limit = minimum_limit;
-                p.total_limit = total_limit;
-                p.frequency_limit = frequency_limit;
-                p.interval_limit = interval_limit;
-            });
-            vipfee_table.emplace(get_self(), [&](auto &p) {
-                p.owner = vip;
-                p.service_fee_rate = SERVICE_FEE_RATE;
-                p.min_service_fee = eosio::asset(MIN_SERVICE_FEE, maximum_limit.symbol);
-                p.miner_fee = eosio::asset(MAXIMUM_LIMIT, maximum_limit.symbol);
-            });
-        } else {
-            viplimit_table.modify(viplimit_table.find(vip.value), same_payer, [&](auto &p) {
-                p.owner = vip;
-                p.maximum_limit = maximum_limit;
-                p.minimum_limit = minimum_limit;
-                p.total_limit = total_limit;
-                p.frequency_limit = frequency_limit;
-                p.interval_limit = interval_limit;
-            });
-        }
+        eosio_assert(iter_vip != vip_table.end(), "vip not set.");
+
+        viplimit_table.modify(viplimit_table.find(vip.value), same_payer, [&](auto &p) {
+            p.owner = vip;
+            p.maximum_limit = maximum_limit;
+            p.minimum_limit = minimum_limit;
+            p.total_limit = total_limit;
+            p.frequency_limit = frequency_limit;
+            p.interval_limit = interval_limit;
+        });
     }
 
     void pegtoken::setfee( symbol_code sym_code, double service_fee_rate,
@@ -159,19 +140,12 @@ namespace eosio {
         auto sym_raw = sym_code.raw();
 
         auto fee_table = fees(get_self(), sym_raw);
-        if( fee_table.begin() == fee_table.end()) {
-            fee_table.emplace(get_self(), [&](auto &p) {
-                p.service_fee_rate = service_fee_rate;
-                p.min_service_fee = min_service_fee;
-                p.miner_fee = miner_fee;
-            });
-        } else {
-            fee_table.modify(fee_table.begin(), same_payer, [&](auto &p) {
-                p.service_fee_rate = service_fee_rate;
-                p.min_service_fee = min_service_fee;
-                p.miner_fee = miner_fee;
-            });
-        }
+        eosio_assert(fee_table.begin() != fee_table.end(), "fees table not initialized.");
+        fee_table.modify(fee_table.begin(), same_payer, [&](auto &p) {
+            p.service_fee_rate = service_fee_rate;
+            p.min_service_fee = min_service_fee;
+            p.miner_fee = miner_fee;
+        });
     }
 
     void pegtoken::setvipfee( symbol_code sym_code, name vip, double service_fee_rate, asset min_service_fee, asset miner_fee ) {
@@ -278,8 +252,8 @@ namespace eosio {
             && iter_cast -> to_account == to_account
             && iter_cast -> to_address == to_address
             && iter_cast -> remote_trx_id == remote_trx_id
-            && iter_cast -> index == index
-            && iter_cast -> state != cast_state::CAST_INIT
+            && iter_cast -> remote_index == index
+            && iter_cast -> state == cast_state::CAST_INIT
             && iter_cast -> quantity == quantity
             , "invalid cast");
 
@@ -300,7 +274,7 @@ namespace eosio {
                 p.enable = true;
             }
             p.trx_id = get_trx_id();
-            p.index = index;
+            p.index = 0;
             p.msg = memo;
             p.auditor = auditor;
             p.state = cast_state::CAST_SUCCESS;
@@ -336,9 +310,9 @@ namespace eosio {
             && iter_cast -> to_account == to_account
             && iter_cast -> to_address == to_address
             && iter_cast -> remote_trx_id == remote_trx_id
-            && iter_cast -> index == index
+            && iter_cast -> remote_index == index
             && iter_cast -> quantity == quantity
-            && iter_cast -> state != cast_state::CAST_INIT
+            && iter_cast -> state == cast_state::CAST_INIT
             , "invalid cast");
 
         cast_table.modify(iter_cast, same_payer, [&](auto &p) {
@@ -346,7 +320,7 @@ namespace eosio {
                 p.enable = false;
             }
             p.trx_id = get_trx_id();
-            p.index = index;
+            p.index = 0;
             p.state = cast_state::CAST_FAIL;
             p.msg = memo;
             p.auditor = auditor;
@@ -673,11 +647,12 @@ namespace eosio {
     void pegtoken::resetaddress( symbol_code sym_code, name to ) {
         is_auth_manager(sym_code);
         ACCOUNT_CHECK(to);
+        eosio_assert(to == get_gatherer(sym_code), "not gatherer.");
 
         auto addrs_tb = addrs(get_self(), sym_code.raw());
         auto addr_iter = addrs_tb.find(to.value);
         eosio_assert(addr_iter != addrs_tb.end(), "account does not exist in addrs table");
-        eosio_assert(addr_iter->address != "", "account address shoule be empty");
+        eosio_assert(addr_iter->address != "", "account address shoule not be empty");
         addrs_tb.modify(addr_iter, same_payer, [&](auto &p) {
             p.state = to.value;
             p.address = "";
