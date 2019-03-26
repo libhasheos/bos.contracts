@@ -317,7 +317,7 @@ namespace eosio {
         });
     }
     
-    void pegtoken::melt( name from_account, string to_address, asset quantity, uint64_t index, string memo ) {
+    void pegtoken::melt( name from_account, string to_address, asset quantity, string memo ) {
         symbol_code sym_code = quantity.symbol.code();
         require_auth(from_account);
         ACCOUNT_CHECK(from_account);
@@ -345,6 +345,10 @@ namespace eosio {
             ratelimit = fee_val.service_fee_rate;
             minlimit = fee_val.min_service_fee;
         }
+        
+        auto fee_amount = ratelimit * quantity.amount > minlimit.amount ? ratelimit * quantity.amount : minlimit.amount;
+	    userfee = eosio::asset(fee_amount, quantity.symbol);
+        
         action(
             permission_level{from_account, "active"_n},
             get_self(),

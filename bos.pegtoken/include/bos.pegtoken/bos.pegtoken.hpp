@@ -74,7 +74,7 @@ public:
     
     [[eosio::action]] void refusecast( symbol_code sym_code, string to_address, name to_account, name auditor, string remote_trx_id, asset quantity, uint64_t index, string memo );
     
-    [[eosio::action]] void melt( name from_account, string to_address, asset quantity, uint64_t index, string memo );
+    [[eosio::action]] void melt( name from_account, string to_address, asset quantity, string memo );
 
     [[eosio::action]] void premelt( name from_account, string to_address, asset quantity, uint64_t index, string memo );
 
