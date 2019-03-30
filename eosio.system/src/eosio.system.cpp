@@ -157,23 +157,30 @@ namespace eosiosystem {
       set_name_list_packed(static_cast<int64_t>(itlt->second), static_cast<int64_t>(itlat->second), packed_names.data(), packed_names.size());
    }
 
-   void system_contract::setminguar(uint32_t ram, uint32_t cpu, uint32_t net)
+   void system_contract::setguaminres(uint32_t ram, uint32_t cpu, uint32_t net)
    {
       require_auth(_self);
+
+      const static uint32_t MAX_BYTE = 100*1024;
+      const static uint32_t MAX_MICROSEC = 100*1000;
+
+      const static uint32_t STEP_BYTE = 10*1024;
+      const static uint32_t STEP_MICROSEC = 10*1000;
       eosio_assert(3 <= _gstate.max_authority_depth, "max_authority_depth should be at least 3");
-      eosio_assert(ram <= 100 && cpu <= 100 && net <= 100, "the value of ram, cpu and net should not more then 100");
+      eosio_assert(ram <= MAX_BYTE  && net <= MAX_BYTE, "the value of ram, cpu and net should not more then 100 kb");
+      eosio_assert(cpu <= MAX_MICROSEC , "the value of  cpu  should not more then 100 ms");
 
-      eosio_min_guarantee _mg = _guarantee.exists() ? _guarantee.get() : eosio_min_guarantee{};
-      eosio_assert(ram >= _mg.ram, "can not reduce ram guarantee ");
-      eosio_assert(ram <= _mg.ram + 10, "minimun ram guarantee can not increace more then 10kb every time");
-      eosio_assert(cpu <= _mg.cpu + 10, "minimun cpu guarantee can not increace more then 10 token weight every time");
-      eosio_assert(net <= _mg.net + 10, "minimun net guarantee can not increace more then 10 token weight every time");
+      eosio_guaranteed_min_res _gmr = _guarantee.exists() ? _guarantee.get() : eosio_guaranteed_min_res{};
+      eosio_assert(ram >= _gmr.ram, "can not reduce ram guarantee ");
+      eosio_assert(ram <= _gmr.ram + STEP_BYTE, "minimum ram guarantee can not increace more then 10kb every time");
+      eosio_assert(cpu <= _gmr.cpu + STEP_MICROSEC, "minimum cpu guarantee can not increace more then 10ms token weight every time");
+      eosio_assert(net <= _gmr.net + STEP_BYTE, "minimum net guarantee can not increace more then 10kb token weight every time");
 
-      _mg.ram = ram;
-      _mg.cpu = cpu;
-      _mg.net = net;
+      _gmr.ram = ram;
+      _gmr.cpu = cpu;
+      _gmr.net = net;
 
-      _guarantee.set(_mg, _self);
+      _guarantee.set(_gmr, _self);
       set_guaranteed_minimum_resources(ram, cpu, net);
    }
    // *bos end*
@@ -185,10 +192,153 @@ namespace eosiosystem {
 
    void system_contract::setalimits( name account, int64_t ram, int64_t net, int64_t cpu ) {
       require_auth( _self );
+
       user_resources_table userres( _self, account.value );
       auto ritr = userres.find( account.value );
       eosio_assert( ritr == userres.end(), "only supports unlimited accounts" );
+
+      auto vitr = _voters.find( account.value );
+      if( vitr != _voters.end() ) {
+         bool ram_managed = has_field( vitr->flags1, voter_info::flags1_fields::ram_managed );
+         bool net_managed = has_field( vitr->flags1, voter_info::flags1_fields::net_managed );
+         bool cpu_managed = has_field( vitr->flags1, voter_info::flags1_fields::cpu_managed );
+         eosio_assert( !(ram_managed || net_managed || cpu_managed), "cannot use setalimits on an account with managed resources" );
+      }
+
       set_resource_limits( account.value, ram, net, cpu );
+   }
+
+   void system_contract::setacctram( name account, std::optional<int64_t> ram_bytes ) {
+      require_auth( _self );
+
+      int64_t current_ram, current_net, current_cpu;
+      get_resource_limits( account.value, &current_ram, &current_net, &current_cpu );
+
+      int64_t ram = 0;
+
+      if( !ram_bytes ) {
+         auto vitr = _voters.find( account.value );
+         eosio_assert( vitr != _voters.end() && has_field( vitr->flags1, voter_info::flags1_fields::ram_managed ),
+                       "RAM of account is already unmanaged" );
+
+         user_resources_table userres( _self, account.value );
+         auto ritr = userres.find( account.value );
+
+         ram = ram_gift_bytes;
+         if( ritr != userres.end() ) {
+            ram += ritr->ram_bytes;
+         }
+
+         _voters.modify( vitr, same_payer, [&]( auto& v ) {
+            v.flags1 = set_field( v.flags1, voter_info::flags1_fields::ram_managed, false );
+         });
+      } else {
+         eosio_assert( *ram_bytes >= 0, "not allowed to set RAM limit to unlimited" );
+
+         auto vitr = _voters.find( account.value );
+         if ( vitr != _voters.end() ) {
+            _voters.modify( vitr, same_payer, [&]( auto& v ) {
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::ram_managed, true );
+            });
+         } else {
+            _voters.emplace( account, [&]( auto& v ) {
+               v.owner  = account;
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::ram_managed, true );
+            });
+         }
+
+         ram = *ram_bytes;
+      }
+
+      set_resource_limits( account.value, ram, current_net, current_cpu );
+   }
+
+   void system_contract::setacctnet( name account, std::optional<int64_t> net_weight ) {
+      require_auth( _self );
+
+      int64_t current_ram, current_net, current_cpu;
+      get_resource_limits( account.value, &current_ram, &current_net, &current_cpu );
+
+      int64_t net = 0;
+
+      if( !net_weight ) {
+         auto vitr = _voters.find( account.value );
+         eosio_assert( vitr != _voters.end() && has_field( vitr->flags1, voter_info::flags1_fields::net_managed ),
+                       "Network bandwidth of account is already unmanaged" );
+
+         user_resources_table userres( _self, account.value );
+         auto ritr = userres.find( account.value );
+
+         if( ritr != userres.end() ) {
+            net = ritr->net_weight.amount;
+         }
+
+         _voters.modify( vitr, same_payer, [&]( auto& v ) {
+            v.flags1 = set_field( v.flags1, voter_info::flags1_fields::net_managed, false );
+         });
+      } else {
+         eosio_assert( *net_weight >= -1, "invalid value for net_weight" );
+
+         auto vitr = _voters.find( account.value );
+         if ( vitr != _voters.end() ) {
+            _voters.modify( vitr, same_payer, [&]( auto& v ) {
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::net_managed, true );
+            });
+         } else {
+            _voters.emplace( account, [&]( auto& v ) {
+               v.owner  = account;
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::net_managed, true );
+            });
+         }
+
+         net = *net_weight;
+      }
+
+      set_resource_limits( account.value, current_ram, net, current_cpu );
+   }
+
+   void system_contract::setacctcpu( name account, std::optional<int64_t> cpu_weight ) {
+      require_auth( _self );
+
+      int64_t current_ram, current_net, current_cpu;
+      get_resource_limits( account.value, &current_ram, &current_net, &current_cpu );
+
+      int64_t cpu = 0;
+
+      if( !cpu_weight ) {
+         auto vitr = _voters.find( account.value );
+         eosio_assert( vitr != _voters.end() && has_field( vitr->flags1, voter_info::flags1_fields::cpu_managed ),
+                       "CPU bandwidth of account is already unmanaged" );
+
+         user_resources_table userres( _self, account.value );
+         auto ritr = userres.find( account.value );
+
+         if( ritr != userres.end() ) {
+            cpu = ritr->cpu_weight.amount;
+         }
+
+         _voters.modify( vitr, same_payer, [&]( auto& v ) {
+            v.flags1 = set_field( v.flags1, voter_info::flags1_fields::cpu_managed, false );
+         });
+      } else {
+         eosio_assert( *cpu_weight >= -1, "invalid value for cpu_weight" );
+
+         auto vitr = _voters.find( account.value );
+         if ( vitr != _voters.end() ) {
+            _voters.modify( vitr, same_payer, [&]( auto& v ) {
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::cpu_managed, true );
+            });
+         } else {
+            _voters.emplace( account, [&]( auto& v ) {
+               v.owner  = account;
+               v.flags1 = set_field( v.flags1, voter_info::flags1_fields::cpu_managed, true );
+            });
+         }
+
+         cpu = *cpu_weight;
+      }
+
+      set_resource_limits( account.value, current_ram, current_net, cpu );
    }
 
    void system_contract::rmvproducer( name producer ) {
@@ -226,6 +376,21 @@ namespace eosiosystem {
       );
 
       name_bid_table bids(_self, _self.value);
+
+      if (newname.length() < BASE_LENGTH)
+      {
+         
+         auto idx = bids.get_index<"highbid"_n>();
+         auto highest = idx.lower_bound(std::numeric_limits<uint64_t>::max() / 2);
+        
+         if (highest != idx.end() &&
+             highest->high_bid > 0)
+         {
+           std::string msg= "newname which length is less than 3  must increase bid by 10% than the highest bid in all bid :current value:"+std::to_string(highest->high_bid );
+           eosio_assert(bid.amount - highest->high_bid > (highest->high_bid / 10),msg.c_str());
+         }
+      }
+
       print( name{bidder}, " bid ", bid, " on ", name{newname}, "\n" );
       auto current = bids.find( newname.value );
       if( current == bids.end() ) {
@@ -308,6 +473,10 @@ namespace eosiosystem {
          if( has_dot ) { // or is less than 12 characters
             auto suffix = newact.suffix();
             if( suffix == newact ) {
+               if("bos"_n==suffix)
+               {
+                     require_auth(_self);
+               }
                name_bid_table bids(_self, _self.value);
                auto current = bids.find( newact.value );
                eosio_assert( current != bids.end(), "no active bid for name" );
@@ -317,6 +486,14 @@ namespace eosiosystem {
             } else {
                eosio_assert( creator == suffix, "only suffix may create this account" );
             }
+
+            const static auto BOS_PREFIX = "bos.";
+            std::string::size_type p = newact.to_string().find(BOS_PREFIX);
+            if(p != std::string::npos && 0 == p)
+            {
+            require_auth(_self);
+            }
+           
          }
       }
 
@@ -373,7 +550,8 @@ EOSIO_DISPATCH( eosiosystem::system_contract,
      // native.hpp (newaccount definition is actually in eosio.system.cpp)
      (newaccount)(updateauth)(deleteauth)(linkauth)(unlinkauth)(canceldelay)(onerror)(setabi)
      // eosio.system.cpp
-     (init)(setram)(setramrate)(setparams)(namelist)(setminguar)(setpriv)(setalimits)(rmvproducer)(updtrevision)(bidname)(bidrefund)
+     (init)(setram)(setramrate)(setparams)(namelist)(setguaminres)(setpriv)(setalimits)(setacctram)(setacctnet)(setacctcpu)
+     (rmvproducer)(updtrevision)(bidname)(bidrefund)
      // delegate_bandwidth.cpp
      (buyrambytes)(buyram)(sellram)(delegatebw)(undelegatebw)(refund)
      // voting.cpp
